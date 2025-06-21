@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"fredis/resp"
 	"io"
 	"log"
 	"net"
@@ -54,16 +55,18 @@ func (serve *Server) readConnections(conn net.Conn) {
 
 	reader := bufio.NewReader(conn)
 	for {
-		line, err := reader.ReadBytes('\n')
+		// line, err := reader.ReadBytes('\n')
+		line, err := resp.RespParser(reader)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("Client %s closed the connection\n", conn.RemoteAddr())
 				return
 			}
-			log.Println("Error in reading bytes from connection", conn.RemoteAddr(), err)
+			// log.Println("Error in reading bytes from connection", conn.RemoteAddr(), err)
 			return
 		}
-		fmt.Printf("Bytes Read from %s are %s", conn.RemoteAddr(), string(line))
-		log.Printf("Bytes Read from %s are %s", conn.RemoteAddr(), string(line))
+		// fmt.Printf("Bytes Read from %s are %s", conn.RemoteAddr(), string(line))
+		log.Printf("Bytes Read from %s are %s", conn.RemoteAddr(), line)
 	}
+
 }

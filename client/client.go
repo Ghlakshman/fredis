@@ -15,7 +15,7 @@ func main() {
 	defer conn.Close()
 
 	// Example: RESP for `PING`
-	command := "*1\r\n$4\r\nPING\r\n"
+	command := "*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n"
 
 	_, err = conn.Write([]byte(command))
 	if err != nil {

@@ -1,6 +1,6 @@
 package main
 
-import "github.com/Ghlakshman/fredis/server"
+import "fredis/server"
 
 func main() {
 	s := server.NewServer(":6379")

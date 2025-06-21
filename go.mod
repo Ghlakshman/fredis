@@ -1,3 +1,3 @@
-module github.com/Ghlakshman/fredis
+module fredis
 
 go 1.24.3
