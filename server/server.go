@@ -56,7 +56,7 @@ func (serve *Server) readConnections(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	for {
 		// line, err := reader.ReadBytes('\n')
-		line, err := resp.RespParser(reader)
+		line, err := resp.ParseRESP(reader)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("Client %s closed the connection\n", conn.RemoteAddr())
@@ -65,8 +65,7 @@ func (serve *Server) readConnections(conn net.Conn) {
 			// log.Println("Error in reading bytes from connection", conn.RemoteAddr(), err)
 			return
 		}
-		// fmt.Printf("Bytes Read from %s are %s", conn.RemoteAddr(), string(line))
-		log.Printf("Bytes Read from %s are %s", conn.RemoteAddr(), line)
+		fmt.Printf("Bytes Read from %s are %s", conn.RemoteAddr(), line)
 	}
 
 }
