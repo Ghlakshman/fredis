@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"fredis/fredisdb"
+	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ func (h *Handler) formatBulkString(s string) []byte {
 }
 
 func (h *Handler) formatError(msg string) []byte {
+	log.Printf("[ERROR] %s", msg)
 	return []byte(fmt.Sprintf("-%s\r\n", msg))
 }
 
@@ -37,12 +39,16 @@ func (h *Handler) HandleCommand(cmd []string) ([]byte, error) {
 		return h.formatError("empty command"), nil
 	}
 
+	log.Printf("[COMMAND] Received: %v", cmd)
+
 	switch strings.ToUpper(cmd[0]) {
 
 	case "PING":
 		if len(cmd) == 1 {
+			log.Println("[PING] No message")
 			return h.formatSimpleString("PONG"), nil
 		} else if len(cmd) == 2 {
+			log.Printf("[PING] Echo message: %s", cmd[1])
 			return h.formatBulkString(cmd[1]), nil
 		}
 		return h.formatError("ERR wrong number of arguments for 'PING'"), nil
@@ -59,6 +65,7 @@ func (h *Handler) HandleCommand(cmd []string) ([]byte, error) {
 			Expiry:     nil,
 		}
 		h.Fcmds.SetValue(key, val)
+		log.Printf("[SET] Key: %s, Value: %s", key, cmd[2])
 		return h.formatSimpleString("OK"), nil
 
 	case "GET":
@@ -68,21 +75,27 @@ func (h *Handler) HandleCommand(cmd []string) ([]byte, error) {
 		key := cmd[1]
 		val, err := h.Fcmds.GetValue(key)
 		if err != nil || val == nil || val.Value == nil {
+			log.Printf("[GET] Key not found or expired: %s", key)
 			return []byte("$-1\r\n"), nil
 		}
 		strVal, ok := val.Value.(string)
 		if !ok {
+			log.Printf("[GET] Key %s has non-string value", key)
 			return h.formatError("ERR value is not a string"), nil
 		}
+		log.Printf("[GET] Key: %s, Value: %s", key, strVal)
 		return h.formatBulkString(strVal), nil
 
 	case "DEL":
 		if len(cmd) != 2 {
 			return h.formatError("ERR wrong number of arguments for 'DEL'"), nil
 		}
-		if h.Fcmds.DelValue(cmd[1]) {
+		key := cmd[1]
+		if h.Fcmds.DelValue(key) {
+			log.Printf("[DEL] Key deleted: %s", key)
 			return h.formatInteger(1), nil
 		}
+		log.Printf("[DEL] Key not found: %s", key)
 		return h.formatInteger(0), nil
 
 	case "EXPIRE":
@@ -94,6 +107,7 @@ func (h *Handler) HandleCommand(cmd []string) ([]byte, error) {
 			return h.formatError("ERR value is not an integer or out of range"), nil
 		}
 		code, _ := h.Fcmds.SetExpiry(cmd[1], seconds)
+		log.Printf("[EXPIRE] Key: %s, Seconds: %d, Result Code: %d", cmd[1], seconds, code)
 		return h.formatInteger(int(code)), nil
 
 	case "TTL":
@@ -101,9 +115,11 @@ func (h *Handler) HandleCommand(cmd []string) ([]byte, error) {
 			return h.formatError("ERR wrong number of arguments for 'TTL'"), nil
 		}
 		ttl := h.Fcmds.TTL(cmd[1])
+		log.Printf("[TTL] Key: %s, TTL: %d", cmd[1], ttl)
 		return h.formatInteger(ttl), nil
 
 	default:
+		log.Printf("[UNKNOWN] Unknown command: %s", cmd[0])
 		return h.formatError("ERR unknown command"), nil
 	}
 }
