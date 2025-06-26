@@ -3,6 +3,8 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"fredis/fredisdb"
+	"fredis/handler"
 	"fredis/resp"
 	"io"
 	"log"
@@ -13,11 +15,13 @@ import (
 type Server struct {
 	serverAddr string
 	client     net.Listener
+	fdCmds     *fredisdb.FredisCmds
 }
 
-func NewServer(serverAddr string) *Server {
+func NewServer(serverAddr string, fdCmds *fredisdb.FredisCmds) *Server {
 	return &Server{
 		serverAddr: serverAddr,
+		fdCmds:     fdCmds,
 	}
 }
 
@@ -41,11 +45,15 @@ func (serve *Server) acceptConnections() {
 			log.Println("Error in Accepting Connection", conn.RemoteAddr(), err)
 			continue
 		}
-		go serve.readConnections(conn)
+		handler := handler.Handler{
+			Conn:  conn,
+			Fcmds: serve.fdCmds,
+		}
+		go serve.readConnections(conn, &handler)
 	}
 }
 
-func (serve *Server) readConnections(conn net.Conn) {
+func (serve *Server) readConnections(conn net.Conn, hndlr *handler.Handler) {
 	defer func() {
 		log.Printf("Client disconnected: %s\n", conn.RemoteAddr())
 		conn.Close()
@@ -65,7 +73,7 @@ func (serve *Server) readConnections(conn net.Conn) {
 			// log.Println("Error in reading bytes from connection", conn.RemoteAddr(), err)
 			return
 		}
-		fmt.Printf("Bytes Read from %s are %s", conn.RemoteAddr(), line)
+		respOutBytes, _ := hndlr.HandleCommand(line)
+		conn.Write(respOutBytes)
 	}
-
 }

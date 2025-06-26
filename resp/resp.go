@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 )
 
-func ParseRESP(reader *bufio.Reader) (any, error) {
+func ParseRESP(reader *bufio.Reader) ([]string, error) {
 	line, err := reader.ReadBytes('\n')
 	if err != nil {
 		return nil, err
@@ -26,18 +27,19 @@ func ParseRESP(reader *bufio.Reader) (any, error) {
 		if err != nil {
 			return nil, errors.New("array count must be numeric")
 		}
-		var items []any
+		var items []string
 		for i := 0; i < count; i++ {
 			val, err := ParseRESP(reader)
 			if err != nil {
 				return nil, err
 			}
-			items = append(items, val)
+			items = append(items, val...)
 		}
 		return items, nil
 
 	case '+', '-', ':':
-		return data, nil
+		number := strings.TrimSpace(data)
+		return []string{number}, nil
 
 	case '$':
 		strlen, err := strconv.Atoi(data)
@@ -53,7 +55,7 @@ func ParseRESP(reader *bufio.Reader) (any, error) {
 			return nil, err
 		}
 		reader.Discard(2)
-		return string(buf), nil
+		return []string{string(buf)}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown RESP type: %c", prefix)
