@@ -119,6 +119,7 @@ func (h *Handler) HandleCommand(cmd []string) ([]byte, error) {
 		return h.formatInteger(ttl), nil
 
 	case "CONFIG":
+
 		if len(cmd) != 4 || strings.ToUpper(cmd[1]) != "SET" || strings.ToLower(cmd[2]) != "eviction-policy" {
 			return h.formatError("ERR usage: CONFIG SET eviction-policy <policy>"), nil
 		}

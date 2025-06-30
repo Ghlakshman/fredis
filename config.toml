@@ -1,0 +1,2 @@
+eviction_policy = "volatile-lru"
+max_entries = 1000

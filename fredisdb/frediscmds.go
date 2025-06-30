@@ -2,22 +2,35 @@ package fredisdb
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math/rand"
+	"strconv"
 	"time"
 )
 
 type FredisCmds struct {
-	FredisDb *FredisStore
+	FredisDb    *FredisStore
+	AOF         *AOF
+	IsReplaying bool
 }
 
-func NewFredisCmds(store *FredisStore) *FredisCmds {
+func NewFredisCmds(store *FredisStore, aof *AOF) *FredisCmds {
 	return &FredisCmds{
 		FredisDb: store,
+		AOF:      aof,
 	}
 }
 
 func (fc *FredisCmds) SetValue(key string, val *Value) {
+
+	if !fc.IsReplaying {
+		fc.AOF.LogCommand(fmt.Sprintf("*3\r\n$3\r\nSET\r\n$%d\r\n%s\r\n$%d\r\n%s\r\n",
+			len(key),
+			key, len(val.Value.(string)),
+			val.Value.(string)))
+	}
+
 	now := time.Now()
 	fc.FredisDb.mu.RLock()
 	existing, exists := fc.FredisDb.data[key]
@@ -61,7 +74,6 @@ func (fc *FredisCmds) SetValue(key string, val *Value) {
 }
 
 func (fc *FredisCmds) GetValue(key string) (*Value, error) {
-	log.Printf("Inside GET")
 	now := time.Now()
 
 	fc.FredisDb.mu.RLock()
@@ -91,18 +103,21 @@ func (fc *FredisCmds) GetValue(key string) (*Value, error) {
 }
 
 func (fc *FredisCmds) DelValue(key string) bool {
-	log.Printf("Inside Delete Acquiring lock")
+
+	if !fc.IsReplaying {
+		fc.AOF.LogCommand(fmt.Sprintf("*2\r\n$3\r\nDEL\r\n$%d\r\n%s\r\n",
+			len(key), key))
+	}
+
 	fc.FredisDb.mu.Lock()
-	log.Printf("Inside Delete Acquired MS lock")
 	existing, exists := fc.FredisDb.data[key]
 	if !exists {
 		fc.FredisDb.mu.Unlock()
 		log.Printf("[DEL] Key not found: %s", key)
 		return false
 	}
-	log.Printf("Inside Delete Acquiring  Entry lock")
+
 	existing.mu.Lock()
-	log.Printf("Inside Delete Acquired  Entry lock")
 	val, ok := fc.FredisDb.data[key]
 	if !ok || val != existing {
 		existing.mu.Unlock()
@@ -120,6 +135,13 @@ func (fc *FredisCmds) DelValue(key string) bool {
 }
 
 func (fc *FredisCmds) SetExpiry(key string, seconds int64) (int8, error) {
+
+	if !fc.IsReplaying {
+		fc.AOF.LogCommand(fmt.Sprintf("*3\r\n$6\r\nEXPIRE\r\n$%d\r\n%s\r\n$%d\r\n%d\r\n",
+			len(key), key,
+			len(strconv.FormatInt(seconds, 10)), seconds))
+	}
+
 	now := time.Now()
 
 	fc.FredisDb.mu.RLock()
