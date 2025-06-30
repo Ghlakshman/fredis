@@ -118,6 +118,19 @@ func (h *Handler) HandleCommand(cmd []string) ([]byte, error) {
 		log.Printf("[TTL] Key: %s, TTL: %d", cmd[1], ttl)
 		return h.formatInteger(ttl), nil
 
+	case "CONFIG":
+		if len(cmd) != 4 || strings.ToUpper(cmd[1]) != "SET" || strings.ToLower(cmd[2]) != "eviction-policy" {
+			return h.formatError("ERR usage: CONFIG SET eviction-policy <policy>"), nil
+		}
+
+		policy := strings.ToLower(cmd[3])
+		if !fredisdb.IsValidEvictionPolicy(policy) {
+			return h.formatError("ERR invalid eviction policy"), nil
+		}
+		h.Fcmds.FredisDb.EvictionPolicy = fredisdb.EvictionPolicy(policy)
+		log.Printf("[CONFIG] Eviction policy set to: %s", policy)
+		return h.formatSimpleString("OK"), nil
+
 	default:
 		log.Printf("[UNKNOWN] Unknown command: %s", cmd[0])
 		return h.formatError("ERR unknown command"), nil

@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	fredisStore := fredisdb.NewFredisStore("", 100000)
+	fredisStore := fredisdb.NewFredisStore("noeviction", 100)
 	cmds := fredisdb.NewFredisCmds(fredisStore)
 	s := server.NewServer(":6379", cmds)
 	s.StartServer()

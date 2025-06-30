@@ -3,23 +3,24 @@ package fredisdb
 import (
 	"errors"
 	"log"
+	"math/rand"
 	"time"
 )
 
 type FredisCmds struct {
-	fredisDb *FredisStore
+	FredisDb *FredisStore
 }
 
 func NewFredisCmds(store *FredisStore) *FredisCmds {
 	return &FredisCmds{
-		fredisDb: store,
+		FredisDb: store,
 	}
 }
 
 func (fc *FredisCmds) SetValue(key string, val *Value) {
 	now := time.Now()
-	fc.fredisDb.mu.RLock()
-	existing, exists := fc.fredisDb.data[key]
+	fc.FredisDb.mu.RLock()
+	existing, exists := fc.FredisDb.data[key]
 
 	if exists {
 		existing.mu.Lock()
@@ -27,17 +28,17 @@ func (fc *FredisCmds) SetValue(key string, val *Value) {
 		existing.LastAccess = now
 		existing.Expiry = val.Expiry
 		existing.mu.Unlock()
-		fc.fredisDb.mu.RUnlock()
+		fc.FredisDb.mu.RUnlock()
 
 		log.Printf("[SET] Updated existing key: %s", key)
 		return
 	}
-	fc.fredisDb.mu.RUnlock()
+	fc.FredisDb.mu.RUnlock()
 
-	fc.fredisDb.mu.Lock()
-	defer fc.fredisDb.mu.Unlock()
+	fc.FredisDb.mu.Lock()
+	defer fc.FredisDb.mu.Unlock()
 
-	still_existing, still_exists := fc.fredisDb.data[key]
+	still_existing, still_exists := fc.FredisDb.data[key]
 	if still_exists {
 		still_existing.mu.Lock()
 		defer still_existing.mu.Unlock()
@@ -50,7 +51,12 @@ func (fc *FredisCmds) SetValue(key string, val *Value) {
 		return
 	}
 
-	fc.fredisDb.data[key] = val
+	if uint64(len(fc.FredisDb.data)) >= fc.FredisDb.maxEntries {
+		log.Printf("[SET] Reached max key limit (%d), triggering eviction", fc.FredisDb.maxEntries)
+		fc.evict()
+	}
+
+	fc.FredisDb.data[key] = val
 	log.Printf("[SET] Inserted new key: %s", key)
 }
 
@@ -58,10 +64,10 @@ func (fc *FredisCmds) GetValue(key string) (*Value, error) {
 	log.Printf("Inside GET")
 	now := time.Now()
 
-	fc.fredisDb.mu.RLock()
-	existing, exists := fc.fredisDb.data[key]
+	fc.FredisDb.mu.RLock()
+	existing, exists := fc.FredisDb.data[key]
 	if !exists {
-		fc.fredisDb.mu.RUnlock()
+		fc.FredisDb.mu.RUnlock()
 		log.Printf("[GET] Key not found: %s", key)
 		return nil, errors.New("key not found in FredisDB")
 	}
@@ -70,7 +76,7 @@ func (fc *FredisCmds) GetValue(key string) (*Value, error) {
 	defer existing.mu.Unlock()
 
 	if existing.Expiry != nil && now.After(*existing.Expiry) {
-		fc.fredisDb.mu.RUnlock()
+		fc.FredisDb.mu.RUnlock()
 		log.Printf("Deleting KEY")
 		go fc.DelValue(key)
 		log.Printf("[GET] Key expired: %s", key)
@@ -78,7 +84,7 @@ func (fc *FredisCmds) GetValue(key string) (*Value, error) {
 	}
 
 	existing.LastAccess = now
-	fc.fredisDb.mu.RUnlock()
+	fc.FredisDb.mu.RUnlock()
 	log.Printf("[GET] Fetched key: %s", key)
 
 	return existing, nil
@@ -86,28 +92,28 @@ func (fc *FredisCmds) GetValue(key string) (*Value, error) {
 
 func (fc *FredisCmds) DelValue(key string) bool {
 	log.Printf("Inside Delete Acquiring lock")
-	fc.fredisDb.mu.Lock()
+	fc.FredisDb.mu.Lock()
 	log.Printf("Inside Delete Acquired MS lock")
-	existing, exists := fc.fredisDb.data[key]
+	existing, exists := fc.FredisDb.data[key]
 	if !exists {
-		fc.fredisDb.mu.Unlock()
+		fc.FredisDb.mu.Unlock()
 		log.Printf("[DEL] Key not found: %s", key)
 		return false
 	}
 	log.Printf("Inside Delete Acquiring  Entry lock")
 	existing.mu.Lock()
 	log.Printf("Inside Delete Acquired  Entry lock")
-	val, ok := fc.fredisDb.data[key]
+	val, ok := fc.FredisDb.data[key]
 	if !ok || val != existing {
 		existing.mu.Unlock()
-		fc.fredisDb.mu.Unlock()
+		fc.FredisDb.mu.Unlock()
 		log.Printf("[DEL] Conflict deleting key (may have been overwritten): %s", key)
 		return false
 	}
 
-	go delete(fc.fredisDb.data, key)
+	go delete(fc.FredisDb.data, key)
 	existing.mu.Unlock()
-	fc.fredisDb.mu.Unlock()
+	fc.FredisDb.mu.Unlock()
 
 	log.Printf("[DEL] Deleted key: %s", key)
 	return true
@@ -116,10 +122,10 @@ func (fc *FredisCmds) DelValue(key string) bool {
 func (fc *FredisCmds) SetExpiry(key string, seconds int64) (int8, error) {
 	now := time.Now()
 
-	fc.fredisDb.mu.RLock()
-	existing, exists := fc.fredisDb.data[key]
+	fc.FredisDb.mu.RLock()
+	existing, exists := fc.FredisDb.data[key]
 	if !exists {
-		fc.fredisDb.mu.RUnlock()
+		fc.FredisDb.mu.RUnlock()
 		log.Printf("[EXPIRE] Key does not exist: %s", key)
 		return -1, errors.New("key does not exist")
 	}
@@ -128,7 +134,7 @@ func (fc *FredisCmds) SetExpiry(key string, seconds int64) (int8, error) {
 	defer existing.mu.Unlock()
 
 	if existing.Expiry != nil && now.After(*existing.Expiry) {
-		fc.fredisDb.mu.RUnlock()
+		fc.FredisDb.mu.RUnlock()
 		go fc.DelValue(key)
 		log.Printf("[EXPIRE] Key already expired: %s", key)
 		return -2, errors.New("key has expired")
@@ -136,7 +142,7 @@ func (fc *FredisCmds) SetExpiry(key string, seconds int64) (int8, error) {
 
 	expiry := now.Add(time.Duration(seconds) * time.Second)
 	existing.Expiry = &expiry
-	fc.fredisDb.mu.RUnlock()
+	fc.FredisDb.mu.RUnlock()
 
 	log.Printf("[EXPIRE] Expiry set for key %s to %v", key, expiry)
 	return 1, nil
@@ -145,9 +151,9 @@ func (fc *FredisCmds) SetExpiry(key string, seconds int64) (int8, error) {
 func (fc *FredisCmds) TTL(key string) int {
 	now := time.Now()
 
-	fc.fredisDb.mu.RLock()
-	defer fc.fredisDb.mu.RUnlock()
-	existing, exists := fc.fredisDb.data[key]
+	fc.FredisDb.mu.RLock()
+	defer fc.FredisDb.mu.RUnlock()
+	existing, exists := fc.FredisDb.data[key]
 
 	if !exists {
 		log.Printf("[TTL] Key not found: %s", key)
@@ -163,7 +169,7 @@ func (fc *FredisCmds) TTL(key string) int {
 	}
 
 	if now.After(*existing.Expiry) {
-		go fc.DelValue(key) // async delete to avoid deadlock
+		go fc.DelValue(key)
 		log.Printf("[TTL] Key expired on TTL: %s", key)
 		return -2
 	}
@@ -171,4 +177,55 @@ func (fc *FredisCmds) TTL(key string) int {
 	ttl := int(existing.Expiry.Sub(now).Seconds())
 	log.Printf("[TTL] TTL for key %s: %ds", key, ttl)
 	return ttl
+}
+
+func (fc *FredisCmds) evict() {
+	switch fc.FredisDb.EvictionPolicy {
+	case "volatile-lru":
+		fc.evictVolatileLRU()
+	case "allkeys-random":
+		fc.evictAllKeysRandom()
+	}
+}
+
+func (fc *FredisCmds) evictVolatileLRU() {
+	var lruKey string
+	var oldest time.Time
+
+	fc.FredisDb.mu.Lock()
+	defer fc.FredisDb.mu.Unlock()
+
+	for key, val := range fc.FredisDb.data {
+		val.mu.RLock()
+		if val.Expiry != nil {
+			if lruKey == "" || val.LastAccess.Before(oldest) {
+				lruKey = key
+				oldest = val.LastAccess
+			}
+		}
+		val.mu.Unlock()
+	}
+
+	if lruKey != "" {
+		log.Println("[Evict] Volatile LRU evicting:", lruKey)
+		fc.DelValue(lruKey)
+	}
+}
+
+func (fc *FredisCmds) evictAllKeysRandom() {
+	fc.FredisDb.mu.Lock()
+	defer fc.FredisDb.mu.Unlock()
+
+	keys := make([]string, 0, len(fc.FredisDb.data))
+	for k := range fc.FredisDb.data {
+		keys = append(keys, k)
+	}
+
+	if len(keys) == 0 {
+		return
+	}
+
+	randomKey := keys[rand.Intn(len(keys))]
+	log.Println("[Evict] Randomly evicting:", randomKey)
+	fc.DelValue(randomKey)
 }
