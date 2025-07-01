@@ -13,19 +13,22 @@
 - ⏱️ TTL and expiry support
 - 🔐 Thread-safe with fine-grained locking
 - 🖥️ Python CLI for command-line interaction
+- 🧠 Configurable eviction policies (LRU,RandomEviction, etc.) Implemented
+- 💾 Append-only file (AOF) persistence Implemented
 
 ---
 
 ## ✅ Supported Commands
 
-| Command           | Description                                       |
-|------------------|---------------------------------------------------|
-| `PING`           | Returns `PONG` or a custom message                |
-| `SET key value`  | Sets the value for a key                          |
-| `GET key`        | Retrieves the value of a key                      |
-| `DEL key`        | Deletes the specified key                         |
-| `EXPIRE key sec` | Sets an expiry time in seconds for a given key   |
-| `TTL key`        | Returns the remaining time-to-live in seconds     |
+| Command                               | Description                                       |
+|---------------------------------------|---------------------------------------------------|
+| `PING`                                | Returns `PONG` or a custom message                |
+| `SET key value`                       | Sets the value for a key                          |
+| `GET key`                             | Retrieves the value of a key                      |
+| `DEL key`                             | Deletes the specified key                         |
+| `EXPIRE key sec`                      | Sets an expiry time in seconds for a given key    |
+| `TTL key`                             | Returns the remaining time-to-live in seconds     |
+| `CONFIG SET eviction-policy` <policy> | Returns the remaining time-to-live in seconds     |
 
 ---
 
@@ -86,18 +89,14 @@ The following features are on the roadmap:
 
 * ✅ Support for `SET` options (`NX`, `XX`, `EX`, `PX`)
 * 🧹 Key reaper to proactively delete expired keys
-* 🧠 Configurable eviction policies (LRU, LFU, etc.)
-* 💾 Append-only file (AOF) persistence
 * 💾 Snapshotting (RDB-style) for full-dump backups
 
 ---
 
 ## 📦 Prebuilt CLI Executable
 
-You can also package the Python CLI into a Windows `.exe` using:
+https://github.com/Ghlakshman/fredis-cli
 
-```bash
-pyinstaller --onefile main.py
-```
+the repository implements a CLI using python with minimal implementations to interact with the server there is packaged executable in the releases section which lets u run the cli without installing python in you local machine
 
-Once built, the CLI can run without Python installed.
+
