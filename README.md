@@ -50,8 +50,13 @@ This ensures:
 
 ## 🧪 Python CLI: `fredis-cli`
 
-A minimal CLI client written in Python is available in the [`fredis-cli`](https://github.com/yourusername/fredis-cli) repo. It lets you send RESP-encoded commands to your Fredis server:
+A minimal CLI client written in Python is available.It lets you send RESP-encoded commands to your Fredis server:
 
+## 📦 Prebuilt CLI Executable
+
+https://github.com/Ghlakshman/fredis-cli
+
+the repository implements a CLI using python with minimal implementations to interact with the server there is packaged executable in the releases section which lets u run the cli without installing python in you local machine
 ### 🔹 Example
 
 ```bash
@@ -93,10 +98,6 @@ The following features are on the roadmap:
 
 ---
 
-## 📦 Prebuilt CLI Executable
 
-https://github.com/Ghlakshman/fredis-cli
-
-the repository implements a CLI using python with minimal implementations to interact with the server there is packaged executable in the releases section which lets u run the cli without installing python in you local machine
 
 
